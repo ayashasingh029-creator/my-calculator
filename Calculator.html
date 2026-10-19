@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ---------- Design tokens (light + dark) ---------- */
+  :root {
+    --bg1: #3b2fa0; --bg2: #1597a8; --bg3: #0c5c7a;
+    --glass: rgba(255,255,255,.12);
+    --glass-edge: rgba(255,255,255,.28);
+    --screen: rgba(10,8,40,.38);
+    --text: #ffffff;
+    --text-dim: rgba(255,255,255,.65);
+    --key: rgba(255,255,255,.14);
+    --key-hover: rgba(255,255,255,.26);
+    --op: #ffb347; --op-text: #2a1a00;
+    --eq: #22d3c5; --eq-text: #04302c;
+    --danger: #ff7a8a;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg1: #1a1347; --bg2: #0b5563; --bg3: #07192e;
+      --glass: rgba(255,255,255,.07);
+      --glass-edge: rgba(255,255,255,.16);
+      --screen: rgba(0,0,0,.45);
+      --key: rgba(255,255,255,.09);
+      --key-hover: rgba(255,255,255,.19);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg1: #1a1347; --bg2: #0b5563; --bg3: #07192e;
+    --glass: rgba(255,255,255,.07);
+    --glass-edge: rgba(255,255,255,.16);
+    --screen: rgba(0,0,0,.45);
+    --key: rgba(255,255,255,.09);
+    --key-hover: rgba(255,255,255,.19);
+  }
+
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--text);
+    background: linear-gradient(135deg, var(--bg1), var(--bg2) 55%, var(--bg3));
+    background-attachment: fixed;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 16px;
+  }
+
+  /* ---------- Calculator body ---------- */
+  .calc {
+    width: min(100%, 360px);
+    padding: 18px;
+    border-radius: 32px;
+    background: var(--glass);
+    border: 1px solid var(--glass-edge);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,.45);
+  }
+
+  /* Large display at the top */
+  .screen {
+    background: var(--screen);
+    border-radius: 22px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    min-height: 120px;
+    display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-end;
+    overflow: hidden;
+  }
+  .history { font-size: 1rem; color: var(--text-dim); min-height: 1.4em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .display {
+    font-size: 3rem; font-weight: 500; line-height: 1.15; max-width: 100%;
+    overflow: hidden; white-space: nowrap; text-align: right;
+    font-variant-numeric: tabular-nums;
+    transition: color .2s;
+  }
+  .display.error { color: var(--danger); animation: shake .35s; }
+  @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+  /* ---------- Button grid ---------- */
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  button {
+    font: inherit; font-size: 1.4rem; font-weight: 500; color: var(--text);
+    background: var(--key); border: 1px solid var(--glass-edge);
+    border-radius: 20px; height: 64px; cursor: pointer;
+    transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:hover { background: var(--key-hover); transform: translateY(-3px); box-shadow: 0 8px 16px -6px rgba(0,0,0,.4); }
+  button:active, button.pressed { transform: scale(.94); }
+  button:focus-visible { outline: 3px solid var(--eq); outline-offset: 2px; }
+  button.op { background: var(--op); color: var(--op-text); border-color: transparent; font-weight: 700; }
+  button.op:hover { background: #ffc470; }
+  button.eq { background: var(--eq); color: var(--eq-text); border-color: transparent; font-weight: 700; grid-row: span 2; height: auto; }
+  button.eq:hover { background: #4fe3d6; }
+  button.wide { grid-column: span 2; }
+  button.fn { color: var(--danger); }
+
+  .footer { font-size: .9rem; color: var(--text-dim); }
+
+  @media (max-width: 380px) {
+    .display { font-size: 2.4rem; }
+    button { height: 56px; font-size: 1.25rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<main class="calc" aria-label="Calculator">
+  <div class="screen">
+    <div class="history" id="history"></div>
+    <div class="display" id="display" aria-live="polite">0</div>
+  </div>
+
+  <div class="keys">
+    <button class="fn" data-key="Escape" aria-label="Clear">C</button>
+    <button class="fn" data-key="Backspace" aria-label="Delete last">DEL</button>
+    <button class="op" data-key="/">÷</button>
+    <button class="op" data-key="*">×</button>
+
+    <button data-key="7">7</button>
+    <button data-key="8">8</button>
+    <button data-key="9">9</button>
+    <button class="op" data-key="-">−</button>
+
+    <button data-key="4">4</button>
+    <button data-key="5">5</button>
+    <button data-key="6">6</button>
+    <button class="op" data-key="+">+</button>
+
+    <button data-key="1">1</button>
+    <button data-key="2">2</button>
+    <button data-key="3">3</button>
+    <button class="eq" data-key="Enter" aria-label="Equals">=</button>
+
+    <button class="wide" data-key="0">0</button>
+    <button data-key=".">.</button>
+  </div>
+</main>
+
+<p class="footer">Use Mouse or Keyboard</p>
+
+<script>
+  // ---------- State ----------
+  // `expr` holds the expression using plain symbols: digits, '.', '+', '-', '*', '/'
+  let expr = "";
+  // True right after "=" so the next digit starts fresh (but an operator continues the result)
+  let justEvaluated = false;
+  // True while the display is showing "Error"
+  let hasError = false;
+
+  const displayEl = document.getElementById("display");
+  const historyEl = document.getElementById("history");
+  const OPERATORS = ["+", "-", "*", "/"];
+
+  // ---------- Display helpers ----------
+  // Convert internal symbols to the prettier ones shown on screen
+  function pretty(s) {
+    return s.replace(/\*/g, "×").replace(/\//g, "÷").replace(/-/g, "−");
+  }
+
+  // Shrink the font when the text gets long so it always fits
+  function fitText() {
+    displayEl.style.fontSize = "";
+    const base = parseFloat(getComputedStyle(displayEl).fontSize);
+    let size = base;
+    while (displayEl.scrollWidth > displayEl.clientWidth && size > 18) {
+      size -= 2;
+      displayEl.style.fontSize = size + "px";
+    }
+  }
+
+  function render() {
+    displayEl.classList.toggle("error", hasError);
+    displayEl.textContent = hasError ? "Error" : (expr === "" ? "0" : pretty(expr));
+    fitText();
+  }
+
+  // ---------- Safe expression evaluator (no eval) ----------
+  // Grammar:  expression = term (("+"|"-") term)*
+  //           term       = factor (("*"|"/") factor)*
+  //           factor     = "-" factor | number
+  function evaluate(source) {
+    const tokens = source.match(/\d*\.?\d+|\d+\.|[+\-*/]/g);
+    if (!tokens || tokens.join("") !== source) throw new Error("Bad token");
+    let pos = 0;
+
+    function factor() {
+      const t = tokens[pos++];
+      if (t === "-") return -factor();            // unary minus
+      if (t === undefined || OPERATORS.includes(t)) throw new Error("Unexpected");
+      return parseFloat(t);
+    }
+    function term() {
+      let value = factor();
+      while (tokens[pos] === "*" || tokens[pos] === "/") {
+        const op = tokens[pos++];
+        const right = factor();
+        if (op === "/" && right === 0) throw new Error("Divide by zero");
+        value = op === "*" ? value * right : value / right;
+      }
+      return value;
+    }
+    function expression() {
+      let value = term();
+      while (tokens[pos] === "+" || tokens[pos] === "-") {
+        const op = tokens[pos++];
+        const right = term();
+        value = op === "+" ? value + right : value - right;
+      }
+      return value;
+    }
+
+    const result = expression();
+    if (pos !== tokens.length || !isFinite(result)) throw new Error("Invalid");
+    return result;
+  }
+
+  // ---------- Actions ----------
+  function showError() {
+    hasError = true;
+    expr = "";
+    render();
+  }
+
+  function clearAll() {
+    expr = ""; justEvaluated = false; hasError = false;
+    historyEl.textContent = "";
+    render();
+  }
+
+  function deleteLast() {
+    if (hasError) return clearAll();
+    expr = expr.slice(0, -1);
+    justEvaluated = false;
+    render();
+  }
+
+  function inputDigit(d) {
+    if (hasError || justEvaluated) { expr = ""; historyEl.textContent = ""; hasError = false; justEvaluated = false; }
+    expr += d;
+    render();
+  }
+
+  function inputDecimal() {
+    if (hasError || justEvaluated) { expr = ""; historyEl.textContent = ""; hasError = false; justEvaluated = false; }
+    // Find the number currently being typed and allow only one "." in it
+    const current = expr.split(/[+\-*/]/).pop();
+    if (current.includes(".")) return;
+    expr += current === "" ? "0." : ".";
+    render();
+  }
+
+  function inputOperator(op) {
+    if (hasError) return;
+    justEvaluated = false;
+    if (expr === "") {                       // allow a leading minus only
+      if (op === "-") { expr = "-"; render(); }
+      return;
+    }
+    const last = expr.slice(-1);
+    if (OPERATORS.includes(last)) {
+      // Replace the previous operator instead of stacking them
+      if (expr.length === 1) return;         // lone leading "-" stays
+      expr = expr.slice(0, -1) + op;
+    } else {
+      expr += op;
+    }
+    render();
+  }
+
+  function calculate() {
+    if (hasError || expr === "") return;
+    try {
+      const result = evaluate(expr);
+      // Trim floating-point noise such as 0.1 + 0.2 = 0.30000000000000004
+      const clean = parseFloat(result.toPrecision(12));
+      historyEl.textContent = pretty(expr) + " =";
+      expr = String(clean);
+      // Very large/small numbers come back in exponent form, which our parser can't read back
+      if (/e/i.test(expr)) { showError(); return; }
+      justEvaluated = true;
+      render();
+    } catch (e) {
+      historyEl.textContent = "";
+      showError();
+    }
+  }
+
+  // ---------- Route any key (mouse or keyboard) to an action ----------
+  function handleKey(key) {
+    if (/^[0-9]$/.test(key)) inputDigit(key);
+    else if (key === ".") inputDecimal();
+    else if (OPERATORS.includes(key)) inputOperator(key);
+    else if (key === "Enter" || key === "=") calculate();
+    else if (key === "Backspace") deleteLast();
+    else if (key === "Escape") clearAll();
+    else return false;                       // not a calculator key
+    return true;
+  }
+
+  // Mouse / touch: every button carries its key in data-key
+  document.querySelectorAll("button[data-key]").forEach(btn => {
+    btn.addEventListener("click", () => handleKey(btn.dataset.key));
+  });
+
+  // Keyboard: also flash the matching on-screen button for visual feedback
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const key = e.key === "x" || e.key === "X" ? "*" : e.key;
+    if (handleKey(key)) {
+      e.preventDefault();                    // stop Enter from re-clicking a focused button
+      const btn = document.querySelector(`button[data-key="${CSS.escape(key === "=" ? "Enter" : key)}"]`);
+      if (btn) { btn.classList.add("pressed"); setTimeout(() => btn.classList.remove("pressed"), 120); }
+    }
+  });
+
+  render();
+</script>
+</body>
+</html>
